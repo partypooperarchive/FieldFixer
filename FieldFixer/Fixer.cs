@@ -60,6 +60,8 @@ namespace FieldFixer
 				
 				var val = new Tuple<uint,string>(new_cmdid, name);
 				
+				WriteLine("{0} {1}", old_cmdid, val);
+				
 				cmdid_mapping.Add(old_cmdid, val);
 			}
 			
@@ -94,18 +96,20 @@ namespace FieldFixer
 			return types_dict;
 		}
 		
-		private void map_regular_field(RegularField ob, RegularField de) {
+		private void map_regular_field(RegularField ob, RegularField de, bool map_constants = true) {
 			var r_ob_t = ob.field_type;
 			var r_de_t = de.field_type;
 						
 			if (!map_type_handling_generics(r_ob_t, r_de_t)) {
 				WriteLine("WARN: fields {0} and {1} have incompatible types: {2} and {3}! Skipping mapping", ob.name, de.name, r_ob_t, r_de_t);
 			} else {
-				de.field_number.Constant = ob.field_number.Constant;
+				if (map_constants) {
+					AssignConstant(de.field_number, ob.field_number.Resolve().Constant);
+				}
 			}
 		}
 		
-		private bool map_type_handling_generics(TypeReference obf, TypeReference de) {
+		private bool map_type_handling_generics(TypeReference obf, TypeReference de) {			
 			if (obf.IsGenericInstance != de.IsGenericInstance) {
 				WriteLine("Types {0} and {1} have different generality: {2} and {3}! Skipping mapping", obf, de, obf.IsGenericInstance, de.IsGenericInstance);
 				return false;
@@ -136,6 +140,10 @@ namespace FieldFixer
 				var obf_t = obf.Resolve();
 				var de_t = de.Resolve();
 				
+				if (obf_t == null || de_t == null) {
+					WriteLine("Poop");
+				}
+				
 				var is_o_pb = IsProtobufType(obf_t, obf_base_class_name);
 				var is_d_pb = IsProtobufType(de_t, de_base_class_name);
 				
@@ -153,7 +161,7 @@ namespace FieldFixer
 			}
 		}
 		
-		private void map_protobuf_type(TypeReference obf, TypeReference de) {
+		private void map_protobuf_type(TypeReference obf, TypeReference de, bool map_constants = true) {
 			var obf_fields = get_protobuf_fields(obf);
 			var de_fields = get_protobuf_fields(de);
 			
@@ -181,7 +189,7 @@ namespace FieldFixer
 						var r_ob_field = ob_field as RegularField;
 						var r_de_field = de_field as RegularField;
 						
-						map_regular_field(r_ob_field, r_de_field);
+						map_regular_field(r_ob_field, r_de_field, map_constants);
 					} else {
 						var o_ob_field = ob_field as OneofField;
 						var o_de_field = de_field as OneofField;
@@ -189,14 +197,14 @@ namespace FieldFixer
 						int entry_count = o_de_field.variants.Count;
 						
 						if (o_ob_field.variants.Count < o_de_field.variants.Count) {
-							WriteLine("WARN: newer OneOf field {0} have {1} entries, but newer {2} have less: {3}! Possible incorrect mapping", 
+							WriteLine("WARN: older OneOf field {0} have {1} entries, but newer {2} have less: {3}! Possible incorrect mapping", 
 							                  ob_field.name, o_ob_field.variants.Count,
 							                  de_field.name, o_de_field.variants.Count);
 							entry_count = o_ob_field.variants.Count;
 						}
 						
 						for (int j = 0; j < entry_count; j++) {
-							map_regular_field(o_ob_field.variants[j], o_de_field.variants[j]);
+							map_regular_field(o_ob_field.variants[j], o_de_field.variants[j], map_constants);
 						}
 					}
 				}
@@ -252,7 +260,7 @@ namespace FieldFixer
 							i++; // There're two fields of generic type, one is FieldCodec, the other one is actual data
 						}
 						
-						result.Add(field_seq_number++, new RegularField(f1, ft.Resolve()));
+						result.Add(field_seq_number++, new RegularField(f1, ft));
 						i++;
 					} else if (is_protobuf_field(f2)) {
 						// And now it's time for some BLACK MAGIC
@@ -340,7 +348,7 @@ namespace FieldFixer
 			return AssemblyDefinition.ReadAssembly(filename, new ReaderParameters { AssemblyResolver = resolver });
 		}
 		
-		public void perform_fixup() {
+		public void perform_fixup() {				
 			foreach (var kvp in de_types) {
 				var de_cmd_id = kvp.Key;
 				var de_type = kvp.Value;
@@ -355,11 +363,15 @@ namespace FieldFixer
 				
 				SetCmdId(de_type, de_cmd_id_name, obf_cmd_id.Item1);
 				
-				map_protobuf_type(obf_type, de_type);
+				map_protobuf_type(obf_type, de_type, true);
 			}
 		}
 		
-		public void save(string filename) {
+		public void save(string filename) {			
+			var r = new Random();
+			
+			de_assembly.Name = new AssemblyNameDefinition("FixedFields", new Version(r.Next(), r.Next(), r.Next(), r.Next()));
+			
 			de_assembly.Write(filename);
 		}
 		
@@ -486,6 +498,10 @@ namespace FieldFixer
 			}
 			
 			throw new ArgumentException();
+		}
+		
+		private void AssignConstant(FieldReference de_field, object obj) {			
+			de_field.Resolve().Constant = obj;
 		}
 		
 		private void WriteLine(string format, params object[] parameters) {

@@ -16,7 +16,7 @@ namespace FieldFixer
 		public static void Main(string[] args)
 		{
 			#if DDEBUG
-			var config_path = @"Z:\config_2.7.0.ini";
+			var config_path = @"Z:\config_2.8.0.ini";
 			#else
 			var config_path = args[0];
 			#endif

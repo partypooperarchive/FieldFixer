@@ -27,7 +27,7 @@ namespace FieldFixer
 	
 	public class RegularField: ProtobufField 
 	{
-		public FieldDefinition field_number = null;
+		public FieldReference field_number = null;
 		public TypeReference field_type = null;
 		
 		public RegularField(FieldDefinition field_number, TypeReference field_type) : base(field_number.Name)
