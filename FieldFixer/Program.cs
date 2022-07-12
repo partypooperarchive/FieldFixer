@@ -16,7 +16,7 @@ namespace FieldFixer
 		public static void Main(string[] args)
 		{
 			#if DDEBUG
-			var config_path = @"Z:\config_2.8.0.ini";
+			var config_path = @"Z:\config_2.7.50.ini";
 			#else
 			var config_path = args[0];
 			#endif
@@ -33,6 +33,8 @@ namespace FieldFixer
 			
 			var out_dll_path = config.GetValue("OutputDllPath", "Settings");
 			
+			var out_nt_path = config.GetValue("OutputNTPath", "Settings", null);
+			
 			var f = new Fixer();
 			
 			f.load_cmdid_mapping(mapping_path);
@@ -44,6 +46,9 @@ namespace FieldFixer
 			f.perform_fixup();
 			
 			f.save(out_dll_path);
+			
+			if (out_nt_path != null)
+				f.save_nt(out_nt_path);
 			
 			Console.Write("Press any key to continue . . . ");
 			Console.ReadKey(true);
